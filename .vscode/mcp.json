@@ -1,0 +1,18 @@
+{
+  "servers": {
+    "next-devtools": {
+      "command": "bunx",
+      "args": [
+        "-y",
+        "next-devtools-mcp@latest"
+      ]
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "ctx7sk-4b513a71-3809-4b09-9380-891c253e11ad"
+      }
+    }
+  }
+}
