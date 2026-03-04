@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Check, Pencil, X } from "lucide-react"
+import { Check, Pencil, X, Search } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 
@@ -27,6 +27,7 @@ export function StocksTable({ stocks }: StocksTableProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState("")
   const [isPending, startTransition] = useTransition()
+  const [query, setQuery] = useState("")
 
   const today = new Date()
   const in60Days = new Date(today)
@@ -52,6 +53,13 @@ export function StocksTable({ stocks }: StocksTableProps) {
     return <Badge className="bg-green-100 text-green-700 border-green-300 hover:bg-green-100">In Stock</Badge>
   }
 
+  const q = query.toLowerCase()
+  const filtered = stocks.filter(
+    (s) =>
+      s.medicine_name.toLowerCase().includes(q) ||
+      s.batch_number.toLowerCase().includes(q),
+  )
+
   const handleSaveReorderLevel = (id: string) => {
     const formData = new FormData()
     formData.set("id", id)
@@ -69,12 +77,23 @@ export function StocksTable({ stocks }: StocksTableProps) {
   }
 
   return (
+    <div className="space-y-3">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by medicine or batch…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="pl-8"
+        />
+      </div>
     <div className="rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Medicine</TableHead>
             <TableHead>Batch No.</TableHead>
+            <TableHead>Supplier</TableHead>
             <TableHead className="text-right">MRP (₹)</TableHead>
             <TableHead className="text-right">Qty Available</TableHead>
             <TableHead className="text-right">Reorder Level</TableHead>
@@ -83,14 +102,17 @@ export function StocksTable({ stocks }: StocksTableProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {stocks.length > 0 ? (
-            stocks.map((stock) => (
+          {filtered.length > 0 ? (
+            filtered.map((stock) => (
               <TableRow key={stock.id} className={cn(getRowClass(stock))}>
                 <TableCell className="font-medium">{stock.medicine_name}</TableCell>
                 <TableCell>
                   <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
                     {stock.batch_number}
                   </code>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {stock.supplier_name ?? <span className="opacity-50">—</span>}
                 </TableCell>
                 <TableCell className="text-right">₹{Number(stock.mrp).toFixed(2)}</TableCell>
                 <TableCell className="text-right font-semibold">
@@ -154,13 +176,13 @@ export function StocksTable({ stocks }: StocksTableProps) {
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                No stock recorded yet. Record a purchase to populate inventory.
+              <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                {query ? "No medicines match your search." : "No stock recorded yet. Record a purchase to populate inventory."}
               </TableCell>
             </TableRow>
           )}
         </TableBody>
       </Table>
     </div>
-  )
+    </div>  )
 }

@@ -1,8 +1,8 @@
 "use client"
 
-import { useTransition } from "react"
+import { useTransition, useState } from "react"
 import { toast } from "sonner"
-import { markAsOrdered, deleteOrderEntry } from "@/lib/actions/to-order"
+import { markAsOrdered, undoMarkAsOrdered, deleteOrderEntry } from "@/lib/actions/to-order"
 import type { ToBeOrdered } from "@/lib/types/database"
 import {
   Table,
@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, Trash2 } from "lucide-react"
+import { CheckCircle2, Trash2, Undo2, Search } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
 
 const reasonConfig: Record<
   ToBeOrdered["reason"],
@@ -24,7 +25,7 @@ const reasonConfig: Record<
 > = {
   out_of_stock:   { label: "Out of Stock",   className: "bg-gray-100 text-gray-700 border-gray-300" },
   low_stock:      { label: "Low Stock",      className: "bg-orange-100 text-orange-700 border-orange-300" },
-  expiring_soon:  { label: "Expiring Soon",  className: "bg-red-100 text-red-700 border-red-300" },
+  expiring_soon:  { label: "Expired",        className: "bg-red-100 text-red-700 border-red-300" },
   manual:         { label: "Manual",         className: "bg-blue-100 text-blue-700 border-blue-300" },
 }
 
@@ -35,10 +36,27 @@ interface ToOrderTableProps {
 
 export function ToOrderTable({ items, showActions = true }: ToOrderTableProps) {
   const [isPending, startTransition] = useTransition()
+  const [query, setQuery] = useState("")
+
+  const filtered = query.trim()
+    ? items.filter(
+        (i) =>
+          i.medicine_name.toLowerCase().includes(query.toLowerCase()) ||
+          (i.batch_number ?? "").toLowerCase().includes(query.toLowerCase())
+      )
+    : items
 
   const handleMarkOrdered = (id: string) => {
     startTransition(async () => {
       const result = await markAsOrdered(id)
+      if (result.success) toast.success(result.message)
+      else toast.error(result.message)
+    })
+  }
+
+  const handleUndo = (id: string) => {
+    startTransition(async () => {
+      const result = await undoMarkAsOrdered(id)
       if (result.success) toast.success(result.message)
       else toast.error(result.message)
     })
@@ -53,21 +71,33 @@ export function ToOrderTable({ items, showActions = true }: ToOrderTableProps) {
   }
 
   return (
+    <div className="space-y-3">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by medicine or batch…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="pl-8 h-9 w-full max-w-sm"
+        />
+      </div>
     <div className="rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Medicine</TableHead>
             <TableHead>Batch No.</TableHead>
+            <TableHead>Supplier</TableHead>
             <TableHead>Reason</TableHead>
+            <TableHead className="text-right">Qty Needed</TableHead>
             <TableHead>Notes</TableHead>
             <TableHead>Added On</TableHead>
-            {showActions && <TableHead className="text-right">Actions</TableHead>}
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {items.length > 0 ? (
-            items.map((item) => {
+          {filtered.length > 0 ? (
+            filtered.map((item) => {
               const config = reasonConfig[item.reason]
               return (
                 <TableRow
@@ -83,6 +113,9 @@ export function ToOrderTable({ items, showActions = true }: ToOrderTableProps) {
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {item.supplier_name ?? <span className="opacity-50">—</span>}
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -105,41 +138,56 @@ export function ToOrderTable({ items, showActions = true }: ToOrderTableProps) {
                   <TableCell className="text-sm">
                     {format(new Date(item.created_at), "dd MMM yyyy")}
                   </TableCell>
-                  {showActions && (
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {showActions ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1"
+                            onClick={() => handleMarkOrdered(item.id)}
+                            disabled={isPending}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                            Ordered
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => handleDelete(item.id)}
+                            disabled={isPending}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </>
+                      ) : (
                         <Button
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs gap-1"
-                          onClick={() => handleMarkOrdered(item.id)}
+                          onClick={() => handleUndo(item.id)}
                           disabled={isPending}
                         >
-                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                          Ordered
+                          <Undo2 className="h-3.5 w-3.5 text-orange-600" />
+                          Undo
                         </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7"
-                          onClick={() => handleDelete(item.id)}
-                          disabled={isPending}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  )}
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               )
             })
           ) : (
             <TableRow>
               <TableCell
-                colSpan={showActions ? 7 : 6}
+                colSpan={8}
                 className="text-center py-12 text-muted-foreground"
               >
-                {showActions
+                {query
+                  ? "No entries match your search."
+                  : showActions
                   ? "No pending orders. All stocks are healthy!"
                   : "No completed orders yet."}
               </TableCell>
@@ -148,5 +196,5 @@ export function ToOrderTable({ items, showActions = true }: ToOrderTableProps) {
         </TableBody>
       </Table>
     </div>
-  )
+    </div>  )
 }

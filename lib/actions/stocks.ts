@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { createClient } from "@/utils/supabase/server"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
 const UpdateReorderLevelSchema = z.object({
   id:            z.string().uuid(),
@@ -12,6 +13,102 @@ const UpdateReorderLevelSchema = z.object({
 export type StockActionState = {
   success: boolean
   message: string
+}
+
+/**
+ * Recompute `quantity_available` for a given batch from the purchases/sales
+ * tables (source of truth), then sync the `to_be_ordered` table.
+ * This is the single function called after every purchase/sale add/edit/delete.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function recalculateStockAndOrders(
+  supabase: SupabaseClient<any>,
+  batchNumber: string,
+  medicineName: string,
+  mrp: number,
+  expiryDate: string,
+) {
+  // Sum all purchases for this batch
+  const { data: purchases } = await supabase
+    .from("purchases")
+    .select("quantity_bought, supplier_name")
+    .eq("batch_number", batchNumber)
+
+  const totalBought = (purchases ?? []).reduce(
+    (sum: number, p: { quantity_bought: number }) => sum + p.quantity_bought, 0,
+  )
+
+  // Determine supplier from the most recent purchase that has one set
+  const supplierName: string | null =
+    [...(purchases ?? [])].reverse().find(
+      (p: { supplier_name: string | null }) => p.supplier_name,
+    )?.supplier_name ?? null
+
+  // Sum all sales for this batch
+  const { data: sales } = await supabase
+    .from("sales")
+    .select("quantity_sold")
+    .eq("batch_number", batchNumber)
+
+  const totalSold = (sales ?? []).reduce(
+    (sum: number, s: { quantity_sold: number }) => sum + s.quantity_sold, 0,
+  )
+
+  const newQty = Math.max(0, totalBought - totalSold)
+
+  // Upsert stock row
+  const { data: existingStock } = await supabase
+    .from("stocks")
+    .select("id, reorder_level")
+    .eq("batch_number", batchNumber)
+    .maybeSingle()
+
+  let reorderLevel = 10 // default
+
+  if (existingStock) {
+    reorderLevel = existingStock.reorder_level
+    await supabase
+      .from("stocks")
+      .update({
+        quantity_available: newQty,
+        medicine_name: medicineName,
+        mrp,
+        expiry_date: expiryDate,
+        supplier_name: supplierName,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existingStock.id)
+  } else if (totalBought > 0) {
+    await supabase.from("stocks").insert({
+      medicine_name: medicineName,
+      batch_number: batchNumber,
+      mrp,
+      expiry_date: expiryDate,
+      quantity_available: newQty,
+      supplier_name: supplierName,
+    })
+  }
+
+  // ── Sync to_be_ordered ────────────────────────────────────────────────────
+  // Remove old auto-generated pending entries for this batch
+  await supabase
+    .from("to_be_ordered")
+    .delete()
+    .eq("batch_number", batchNumber)
+    .in("reason", ["low_stock", "out_of_stock"])
+    .eq("is_ordered", false)
+
+  // Whatever has been sold should appear in to-be-ordered
+  if (totalSold > 0) {
+    await supabase.from("to_be_ordered").insert({
+      medicine_name: medicineName,
+      batch_number: batchNumber,
+      reason: "out_of_stock",
+      quantity_needed: totalSold,
+      supplier_name: supplierName,
+      is_ordered: false,
+    })
+  }
 }
 
 export async function updateReorderLevel(

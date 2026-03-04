@@ -16,6 +16,12 @@ export type ReorderReason =
 
 // ─── Row types (what comes back from SELECT) ──────────────────────────────────
 
+export interface Party {
+  id: string
+  name: string
+  created_at: string
+}
+
 export interface Stock {
   id: string
   medicine_name: string
@@ -24,6 +30,7 @@ export interface Stock {
   expiry_date: string          // ISO date string "YYYY-MM-DD"
   quantity_available: number
   reorder_level: number        // default 10
+  supplier_name: string | null
   created_at: string
   updated_at: string
 }
@@ -36,6 +43,7 @@ export interface Purchase {
   expiry_date: string
   quantity_bought: number
   purchase_date: string
+  supplier_name: string | null
   created_at: string
 }
 
@@ -58,6 +66,7 @@ export interface ToBeOrdered {
   reason: ReorderReason
   notes: string | null
   quantity_needed: number       // units that need to be reordered
+  supplier_name: string | null
   is_ordered: boolean
   created_at: string
 }

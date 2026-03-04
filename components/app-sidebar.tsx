@@ -8,6 +8,7 @@ import {
   Package,
   TrendingDown,
   ClipboardList,
+  Building2,
 } from "lucide-react"
 
 import {
@@ -49,6 +50,11 @@ const navItems = [
     title: "To Be Ordered",
     href: "/to-order",
     icon: ClipboardList,
+  },
+  {
+    title: "Parties",
+    href: "/parties",
+    icon: Building2,
   },
 ]
 
