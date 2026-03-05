@@ -19,14 +19,13 @@ import { Check, Pencil, X, Search } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 
-type StatusFilter = "all" | "in_stock" | "low_stock" | "out_of_stock" | "expiring_soon" | "expired"
+type StatusFilter = "all" | "in_stock" | "low_stock" | "expiring_soon" | "expired"
 
 const statusOptions: { value: StatusFilter; label: string }[] = [
   { value: "all",           label: "All"           },
   { value: "in_stock",      label: "In Stock"      },
   { value: "expiring_soon", label: "Expiring Soon" },
   { value: "low_stock",     label: "Low Stock"     },
-  { value: "out_of_stock",  label: "Out of Stock"  },
   { value: "expired",       label: "Expired"       },
 ]
 
@@ -58,8 +57,6 @@ export function StocksTable({ stocks }: StocksTableProps) {
     if (expiry < today) return <Badge variant="destructive">Expired</Badge>
     if (expiry <= in150Days)
       return <Badge className="bg-red-100 text-red-700 border-red-300 hover:bg-red-100">Expiring Soon</Badge>
-    if (stock.quantity_available === 0)
-      return <Badge variant="outline" className="text-muted-foreground">Out of Stock</Badge>
     if (stock.quantity_available < stock.reorder_level)
       return <Badge className="bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-100">Low Stock</Badge>
     return <Badge className="bg-green-100 text-green-700 border-green-300 hover:bg-green-100">In Stock</Badge>
@@ -69,13 +66,13 @@ export function StocksTable({ stocks }: StocksTableProps) {
     const expiry = new Date(stock.expiry_date)
     if (expiry < today) return "expired"
     if (expiry <= in150Days) return "expiring_soon"
-    if (stock.quantity_available === 0) return "out_of_stock"
     if (stock.quantity_available < stock.reorder_level) return "low_stock"
     return "in_stock"
   }
 
   const q = query.toLowerCase()
   const filtered = stocks
+    .filter((s) => s.quantity_available > 0)
     .filter((s) => statusFilter === "all" || getStockStatus(s) === statusFilter)
     .filter(
       (s) =>

@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/popover"
 import { Check, ChevronDown, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { MedicineScanner } from "@/components/ui/medicine-scanner"
+import type { PackagingScanResult } from "@/lib/utils/ocr-extract"
 
 interface StockOption {
   medicine_name: string
@@ -53,6 +55,9 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
   const [comboOpen, setComboOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
+  // manual mode batch from scanner
+  const [manualBatch, setManualBatch] = useState("")
+
   const resetForm = () => {
     formRef.current?.reset()
     setSelectedBatch("")
@@ -61,6 +66,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
     setAutoMedicineName("")
     setSearchQuery("")
     setComboOpen(false)
+    setManualBatch("")
   }
 
   useEffect(() => {
@@ -88,6 +94,24 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
     }
   }
 
+  const handleScanResult = (result: PackagingScanResult) => {
+    if (!result.batch_number) {
+      toast.error("Batch number not found on packaging.")
+      return
+    }
+    const match = stocks.find(
+      (s) => s.batch_number.toLowerCase() === result.batch_number!.toLowerCase(),
+    )
+    if (match) {
+      setMode("stock")
+      handleBatchSelect(match.batch_number)
+    } else {
+      setMode("manual")
+      setManualBatch(result.batch_number)
+      toast.info("Batch not in stock — switched to manual entry.")
+    }
+  }
+
   const handleOpenChange = (v: boolean) => {
     setOpen(v)
     if (!v) resetForm()
@@ -105,7 +129,10 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record Sale</DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>Record Sale</DialogTitle>
+            <MedicineScanner onResult={handleScanResult} />
+          </div>
         </DialogHeader>
 
         {/* Mode toggle */}
@@ -230,7 +257,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
 
               <div className="space-y-1">
                 <Label htmlFor="batch_number">Batch Number</Label>
-                <Input id="batch_number" name="batch_number" placeholder="e.g. BT-2025-001" required />
+                <Input id="batch_number" name="batch_number" placeholder="e.g. BT-2025-001" value={manualBatch} onChange={(e) => setManualBatch(e.target.value)} required />
                 {state.errors?.batch_number && (
                   <p className="text-xs text-destructive">{state.errors.batch_number[0]}</p>
                 )}

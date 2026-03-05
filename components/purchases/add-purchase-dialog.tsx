@@ -23,6 +23,8 @@ import {
 import { Plus } from "lucide-react"
 import { useState } from "react"
 import type { Party } from "@/lib/types/database"
+import { MedicineScanner } from "@/components/ui/medicine-scanner"
+import type { PackagingScanResult } from "@/lib/utils/ocr-extract"
 
 const initialState: PurchaseActionState = { success: false, message: "" }
 
@@ -35,6 +37,15 @@ export function AddPurchaseDialog({ parties }: AddPurchaseDialogProps) {
   const [state, formAction, pending] = useActionState(addPurchase, initialState)
   const formRef = useRef<HTMLFormElement>(null)
   const [supplierName, setSupplierName] = useState("")
+  const [batchNumber, setBatchNumber] = useState("")
+  const [expiryDate, setExpiryDate] = useState("")
+  const [mrp, setMrp] = useState("")
+
+  const handleScanResult = (result: PackagingScanResult) => {
+    if (result.batch_number) setBatchNumber(result.batch_number)
+    if (result.expiry_date) setExpiryDate(result.expiry_date)
+    if (result.mrp) setMrp(result.mrp)
+  }
 
   useEffect(() => {
     if (state.message) {
@@ -42,6 +53,9 @@ export function AddPurchaseDialog({ parties }: AddPurchaseDialogProps) {
         toast.success(state.message)
         formRef.current?.reset()
         setSupplierName("")
+        setBatchNumber("")
+        setExpiryDate("")
+        setMrp("")
         setOpen(false)
       } else {
         toast.error(state.message)
@@ -61,7 +75,10 @@ export function AddPurchaseDialog({ parties }: AddPurchaseDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Record New Purchase</DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>Record New Purchase</DialogTitle>
+            <MedicineScanner onResult={handleScanResult} />
+          </div>
         </DialogHeader>
         <form ref={formRef} action={formAction} className="space-y-4">
           {/* hidden supplier name so server action can read it */}
@@ -93,7 +110,7 @@ export function AddPurchaseDialog({ parties }: AddPurchaseDialogProps) {
 
             <div className="space-y-1">
               <Label htmlFor="batch_number">Batch Number</Label>
-              <Input id="batch_number" name="batch_number" placeholder="e.g. BT-2025-001" required />
+              <Input id="batch_number" name="batch_number" placeholder="e.g. BT-2025-001" value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} required />
               {state.errors?.batch_number && (
                 <p className="text-xs text-destructive">{state.errors.batch_number[0]}</p>
               )}
@@ -109,7 +126,7 @@ export function AddPurchaseDialog({ parties }: AddPurchaseDialogProps) {
 
             <div className="space-y-1">
               <Label htmlFor="mrp">MRP (₹)</Label>
-              <Input id="mrp" name="mrp" type="number" step="0.01" min="0.01" placeholder="10.00" required />
+              <Input id="mrp" name="mrp" type="number" step="0.01" min="0.01" placeholder="10.00" value={mrp} onChange={(e) => setMrp(e.target.value)} required />
               {state.errors?.mrp && (
                 <p className="text-xs text-destructive">{state.errors.mrp[0]}</p>
               )}
@@ -117,7 +134,7 @@ export function AddPurchaseDialog({ parties }: AddPurchaseDialogProps) {
 
             <div className="space-y-1">
               <Label htmlFor="expiry_date">Expiry Date</Label>
-              <Input id="expiry_date" name="expiry_date" type="date" required />
+              <Input id="expiry_date" name="expiry_date" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} required />
               {state.errors?.expiry_date && (
                 <p className="text-xs text-destructive">{state.errors.expiry_date[0]}</p>
               )}
