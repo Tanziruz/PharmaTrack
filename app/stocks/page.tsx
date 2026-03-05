@@ -16,7 +16,7 @@ export default async function StocksPage() {
       <div className="flex gap-4 text-sm">
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-3 h-3 rounded-sm bg-red-100 border border-red-300" />
-          Expired / expiring ≤ 60 days
+          Expired / expiring ≤ 150 days
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-3 h-3 rounded-sm bg-orange-100 border border-orange-300" />
