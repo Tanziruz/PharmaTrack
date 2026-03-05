@@ -29,6 +29,16 @@ const reasonConfig: Record<
   manual:         { label: "Manual",         className: "bg-blue-100 text-blue-700 border-blue-300" },
 }
 
+type ReasonFilter = "all" | ToBeOrdered["reason"]
+
+const reasonOptions: { value: ReasonFilter; label: string }[] = [
+  { value: "all",           label: "All"          },
+  { value: "out_of_stock",  label: "Out of Stock" },
+  { value: "low_stock",     label: "Low Stock"    },
+  { value: "expiring_soon", label: "Expired"      },
+  { value: "manual",        label: "Manual"       },
+]
+
 interface ToOrderTableProps {
   items: ToBeOrdered[]
   showActions?: boolean
@@ -37,14 +47,16 @@ interface ToOrderTableProps {
 export function ToOrderTable({ items, showActions = true }: ToOrderTableProps) {
   const [isPending, startTransition] = useTransition()
   const [query, setQuery] = useState("")
+  const [reasonFilter, setReasonFilter] = useState<ReasonFilter>("all")
 
-  const filtered = query.trim()
-    ? items.filter(
-        (i) =>
-          i.medicine_name.toLowerCase().includes(query.toLowerCase()) ||
-          (i.batch_number ?? "").toLowerCase().includes(query.toLowerCase())
-      )
-    : items
+  const filtered = items
+    .filter((i) => reasonFilter === "all" || i.reason === reasonFilter)
+    .filter(
+      (i) =>
+        !query.trim() ||
+        i.medicine_name.toLowerCase().includes(query.toLowerCase()) ||
+        (i.batch_number ?? "").toLowerCase().includes(query.toLowerCase()),
+    )
 
   const handleMarkOrdered = (id: string) => {
     startTransition(async () => {
@@ -80,6 +92,23 @@ export function ToOrderTable({ items, showActions = true }: ToOrderTableProps) {
           onChange={(e) => setQuery(e.target.value)}
           className="pl-8 h-9 w-full max-w-sm"
         />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {reasonOptions.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setReasonFilter(opt.value)}
+            className={cn(
+              "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+              reasonFilter === opt.value
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background text-muted-foreground border-border hover:bg-muted",
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     <div className="rounded-lg border">
       <Table>
@@ -185,8 +214,8 @@ export function ToOrderTable({ items, showActions = true }: ToOrderTableProps) {
                 colSpan={8}
                 className="text-center py-12 text-muted-foreground"
               >
-                {query
-                  ? "No entries match your search."
+                {query || reasonFilter !== "all"
+                  ? "No entries match your filters."
                   : showActions
                   ? "No pending orders. All stocks are healthy!"
                   : "No completed orders yet."}

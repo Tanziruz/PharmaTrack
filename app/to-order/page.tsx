@@ -1,6 +1,7 @@
 import { getToBeOrdered } from "@/lib/actions/to-order"
 import { ToOrderTable } from "@/components/to-order/to-order-table"
 import { AddManualOrderDialog } from "@/components/to-order/add-manual-order-dialog"
+import { ClearOrderedButton } from "@/components/to-order/clear-ordered-button"
 
 export default async function ToOrderPage() {
   const items = await getToBeOrdered()
@@ -48,7 +49,10 @@ export default async function ToOrderPage() {
 
         {ordered.length > 0 && (
           <section>
-            <h2 className="text-base font-semibold mb-3 text-muted-foreground">Ordered</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-muted-foreground">Ordered</h2>
+              <ClearOrderedButton />
+            </div>
             <ToOrderTable items={ordered} showActions={false} />
           </section>
         )}

@@ -175,6 +175,24 @@ export async function deleteOrderEntry(id: string): Promise<ToOrderActionState> 
   return { success: true, message: "Entry removed." }
 }
 
+export async function clearAllOrdered(): Promise<ToOrderActionState> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from("to_be_ordered")
+    .delete()
+    .eq("is_ordered", true)
+
+  if (error) {
+    return { success: false, message: `Database error: ${error.message}` }
+  }
+
+  revalidatePath("/to-order")
+  revalidatePath("/")
+
+  return { success: true, message: "Cleared all ordered items." }
+}
+
 export const getToBeOrdered = cache(async () => {
   await syncExpiredEntries()
   const supabase = await createClient()

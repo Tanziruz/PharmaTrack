@@ -22,6 +22,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 
@@ -60,6 +61,7 @@ const navItems = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { isMobile, setOpenMobile } = useSidebar()
 
   return (
     <Sidebar>
@@ -91,6 +93,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild isActive={isActive}>
                       <Link
                         href={item.href}
+                        onClick={() => { if (isMobile) setOpenMobile(false) }}
                         className={cn(
                           "flex items-center gap-2",
                           isActive && "font-medium",

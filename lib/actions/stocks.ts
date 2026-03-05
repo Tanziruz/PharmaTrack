@@ -143,12 +143,12 @@ export const getStocks = cache(async () => {
 export async function getStockSummary() {
   const data = await getStocks()
   const today = new Date()
-  const in60Days = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000)
+  const in150Days = new Date(today.getTime() + 150 * 24 * 60 * 60 * 1000)
   return {
     total:        data.length,
     lowStock:     data.filter((s) => s.quantity_available > 0 && s.quantity_available < s.reorder_level).length,
     outOfStock:   data.filter((s) => s.quantity_available === 0).length,
-    expiringSoon: data.filter((s) => { const exp = new Date(s.expiry_date); return exp <= in60Days && exp >= today }).length,
+    expiringSoon: data.filter((s) => { const exp = new Date(s.expiry_date); return exp <= in150Days && exp >= today }).length,
   }
 }
 

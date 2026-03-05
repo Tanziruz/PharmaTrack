@@ -19,6 +19,17 @@ import { Check, Pencil, X, Search } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 
+type StatusFilter = "all" | "in_stock" | "low_stock" | "out_of_stock" | "expiring_soon" | "expired"
+
+const statusOptions: { value: StatusFilter; label: string }[] = [
+  { value: "all",           label: "All"           },
+  { value: "in_stock",      label: "In Stock"      },
+  { value: "expiring_soon", label: "Expiring Soon" },
+  { value: "low_stock",     label: "Low Stock"     },
+  { value: "out_of_stock",  label: "Out of Stock"  },
+  { value: "expired",       label: "Expired"       },
+]
+
 interface StocksTableProps {
   stocks: Stock[]
 }
@@ -28,15 +39,16 @@ export function StocksTable({ stocks }: StocksTableProps) {
   const [editValue, setEditValue] = useState("")
   const [isPending, startTransition] = useTransition()
   const [query, setQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
 
   const today = new Date()
-  const in60Days = new Date(today)
-  in60Days.setDate(today.getDate() + 60)
+  const in150Days = new Date(today)
+  in150Days.setDate(today.getDate() + 150)
 
   const getRowClass = (stock: Stock) => {
     const expiry = new Date(stock.expiry_date)
     if (stock.quantity_available === 0) return "bg-gray-50 text-muted-foreground"
-    if (expiry <= in60Days) return "bg-red-50"
+    if (expiry <= in150Days) return "bg-red-50"
     if (stock.quantity_available < stock.reorder_level) return "bg-orange-50"
     return ""
   }
@@ -44,7 +56,7 @@ export function StocksTable({ stocks }: StocksTableProps) {
   const getStatusBadge = (stock: Stock) => {
     const expiry = new Date(stock.expiry_date)
     if (expiry < today) return <Badge variant="destructive">Expired</Badge>
-    if (expiry <= in60Days)
+    if (expiry <= in150Days)
       return <Badge className="bg-red-100 text-red-700 border-red-300 hover:bg-red-100">Expiring Soon</Badge>
     if (stock.quantity_available === 0)
       return <Badge variant="outline" className="text-muted-foreground">Out of Stock</Badge>
@@ -53,12 +65,23 @@ export function StocksTable({ stocks }: StocksTableProps) {
     return <Badge className="bg-green-100 text-green-700 border-green-300 hover:bg-green-100">In Stock</Badge>
   }
 
+  const getStockStatus = (stock: Stock): StatusFilter => {
+    const expiry = new Date(stock.expiry_date)
+    if (expiry < today) return "expired"
+    if (expiry <= in150Days) return "expiring_soon"
+    if (stock.quantity_available === 0) return "out_of_stock"
+    if (stock.quantity_available < stock.reorder_level) return "low_stock"
+    return "in_stock"
+  }
+
   const q = query.toLowerCase()
-  const filtered = stocks.filter(
-    (s) =>
-      s.medicine_name.toLowerCase().includes(q) ||
-      s.batch_number.toLowerCase().includes(q),
-  )
+  const filtered = stocks
+    .filter((s) => statusFilter === "all" || getStockStatus(s) === statusFilter)
+    .filter(
+      (s) =>
+        s.medicine_name.toLowerCase().includes(q) ||
+        s.batch_number.toLowerCase().includes(q),
+    )
 
   const handleSaveReorderLevel = (id: string) => {
     const formData = new FormData()
@@ -86,6 +109,23 @@ export function StocksTable({ stocks }: StocksTableProps) {
           onChange={(e) => setQuery(e.target.value)}
           className="pl-8"
         />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {statusOptions.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setStatusFilter(opt.value)}
+            className={cn(
+              "px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+              statusFilter === opt.value
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background text-muted-foreground border-border hover:bg-muted",
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     <div className="rounded-lg border">
       <Table>
@@ -177,7 +217,7 @@ export function StocksTable({ stocks }: StocksTableProps) {
           ) : (
             <TableRow>
               <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                {query ? "No medicines match your search." : "No stock recorded yet. Record a purchase to populate inventory."}
+                {query || statusFilter !== "all" ? "No medicines match your filters." : "No stock recorded yet. Record a purchase to populate inventory."}
               </TableCell>
             </TableRow>
           )}
