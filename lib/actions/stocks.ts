@@ -28,27 +28,27 @@ export async function recalculateStockAndOrders(
   mrp: number,
   expiryDate: string,
 ) {
-  // Sum all purchases for this batch
-  const { data: purchases } = await supabase
-    .from("purchases")
-    .select("quantity_bought, supplier_name")
-    .eq("batch_number", batchNumber)
+  // Run purchases and sales queries in parallel — they're independent
+  const [{ data: purchases }, { data: sales }] = await Promise.all([
+    supabase
+      .from("purchases")
+      .select("quantity_bought, supplier_name")
+      .eq("batch_number", batchNumber),
+    supabase
+      .from("sales")
+      .select("quantity_sold")
+      .eq("batch_number", batchNumber),
+  ])
 
   const totalBought = (purchases ?? []).reduce(
     (sum: number, p: { quantity_bought: number }) => sum + p.quantity_bought, 0,
   )
 
-  // Determine supplier from the most recent purchase that has one set
+  // Supplier = most recent purchase that has one set
   const supplierName: string | null =
     [...(purchases ?? [])].reverse().find(
       (p: { supplier_name: string | null }) => p.supplier_name,
     )?.supplier_name ?? null
-
-  // Sum all sales for this batch
-  const { data: sales } = await supabase
-    .from("sales")
-    .select("quantity_sold")
-    .eq("batch_number", batchNumber)
 
   const totalSold = (sales ?? []).reduce(
     (sum: number, s: { quantity_sold: number }) => sum + s.quantity_sold, 0,

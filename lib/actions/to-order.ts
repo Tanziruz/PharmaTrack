@@ -42,24 +42,30 @@ async function syncExpiredEntries() {
       .map((e) => e.batch_number as string),
   )
 
-  for (const stock of expiredStocks ?? []) {
-    if (!alreadyTracked.has(stock.batch_number)) {
-      await supabase.from("to_be_ordered").insert({
-        medicine_name: stock.medicine_name,
-        batch_number: stock.batch_number,
+  // Batch-insert all missing expired entries in one query instead of a loop
+  const toInsert = (expiredStocks ?? []).filter(
+    (s) => !alreadyTracked.has(s.batch_number),
+  )
+  if (toInsert.length > 0) {
+    await supabase.from("to_be_ordered").insert(
+      toInsert.map((s) => ({
+        medicine_name: s.medicine_name,
+        batch_number: s.batch_number,
         reason: "expiring_soon",
-        quantity_needed: stock.quantity_available,
-        supplier_name: stock.supplier_name ?? null,
+        quantity_needed: s.quantity_available,
+        supplier_name: s.supplier_name ?? null,
         notes: "Expired stock",
         is_ordered: false,
-      })
-    }
+      })),
+    )
   }
 
-  for (const entry of pendingExpiredEntries ?? []) {
-    if (!entry.batch_number || !expiredBatches.has(entry.batch_number)) {
-      await supabase.from("to_be_ordered").delete().eq("id", entry.id)
-    }
+  // Batch-delete all stale entries in one query instead of a loop
+  const staleIds = (pendingExpiredEntries ?? [])
+    .filter((e) => !e.batch_number || !expiredBatches.has(e.batch_number))
+    .map((e) => e.id)
+  if (staleIds.length > 0) {
+    await supabase.from("to_be_ordered").delete().in("id", staleIds)
   }
 }
 
