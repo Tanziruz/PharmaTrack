@@ -1,5 +1,6 @@
 "use server"
 
+import { cache } from "@/lib/cache"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { createClient } from "@/utils/supabase/server"
@@ -22,7 +23,6 @@ export type SaleActionState = {
 }
 
 function revalidateAll() {
-  revalidatePath("/purchases")
   revalidatePath("/sales")
   revalidatePath("/stocks")
   revalidatePath("/to-order")
@@ -116,25 +116,22 @@ export async function editSale(
 
   const supabase = await createClient()
 
-  // Get old sale to know old batch (in case batch changed)
-  const { data: oldSale } = await supabase.from("sales").select("*").eq("id", id).single()
+  // Fetch old sale + validation data in parallel — all independent
+  const [
+    { data: oldSale },
+    { data: batchPurchases },
+    { data: otherSales },
+  ] = await Promise.all([
+    supabase.from("sales").select("*").eq("id", id).maybeSingle(),
+    supabase.from("purchases").select("quantity_bought").eq("batch_number", parsed.data.batch_number),
+    supabase.from("sales").select("quantity_sold").eq("batch_number", parsed.data.batch_number).neq("id", id),
+  ])
+
   if (!oldSale) return { success: false, message: "Sale not found." }
 
-  // Validate new quantity won't exceed stock (compute: total_bought - total_other_sales)
-  const { data: purchases } = await supabase
-    .from("purchases")
-    .select("quantity_bought")
-    .eq("batch_number", parsed.data.batch_number)
-
-  const totalBought = (purchases ?? []).reduce(
+  const totalBought = (batchPurchases ?? []).reduce(
     (sum: number, p: { quantity_bought: number }) => sum + p.quantity_bought, 0,
   )
-
-  const { data: otherSales } = await supabase
-    .from("sales")
-    .select("quantity_sold")
-    .eq("batch_number", parsed.data.batch_number)
-    .neq("id", id)
 
   const totalOtherSold = (otherSales ?? []).reduce(
     (sum: number, s: { quantity_sold: number }) => sum + s.quantity_sold, 0,
@@ -151,13 +148,12 @@ export async function editSale(
   const { error } = await supabase.from("sales").update(parsed.data).eq("id", id)
   if (error) return { success: false, message: `Database error: ${error.message}` }
 
-  // Recalculate for old batch (if batch changed)
-  if (oldSale.batch_number !== parsed.data.batch_number) {
-    await recalculateStockAndOrders(supabase, oldSale.batch_number, oldSale.medicine_name, oldSale.mrp, oldSale.expiry_date)
-  }
-
-  // Recalculate for current batch
-  await recalculateStockAndOrders(supabase, parsed.data.batch_number, parsed.data.medicine_name, parsed.data.mrp, parsed.data.expiry_date)
+  await Promise.all([
+    oldSale.batch_number !== parsed.data.batch_number
+      ? recalculateStockAndOrders(supabase, oldSale.batch_number, oldSale.medicine_name, oldSale.mrp, oldSale.expiry_date)
+      : Promise.resolve(),
+    recalculateStockAndOrders(supabase, parsed.data.batch_number, parsed.data.medicine_name, parsed.data.mrp, parsed.data.expiry_date),
+  ])
 
   revalidateAll()
   return { success: true, message: "Sale updated successfully." }
@@ -178,32 +174,27 @@ export async function deleteSale(id: string): Promise<SaleActionState> {
   return { success: true, message: "Sale deleted." }
 }
 
-export async function getSales() {
+export const getSales = cache(async () => {
   const supabase = await createClient()
-
   const { data, error } = await supabase
     .from("sales")
     .select("*")
     .order("created_at", { ascending: false })
-
   if (error) throw new Error(error.message)
-  return data
-}
+  return data ?? []
+})
 
-export async function getTodaySalesTotal() {
+export const getTodaySalesTotal = cache(async () => {
   const supabase = await createClient()
-
   const today = new Date().toISOString().split("T")[0]
-
   const { data, error } = await supabase
     .from("sales")
     .select("selling_price, quantity_sold")
     .eq("sale_date", today)
-
   if (error) return 0
-
   return (data ?? []).reduce(
-    (sum, s) => sum + s.selling_price * s.quantity_sold,
+    (sum: number, s: { selling_price: number; quantity_sold: number }) =>
+      sum + s.selling_price * s.quantity_sold,
     0,
   )
-}
+})

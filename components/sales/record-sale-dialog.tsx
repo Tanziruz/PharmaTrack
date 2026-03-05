@@ -14,13 +14,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Plus } from "lucide-react"
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Check, ChevronDown, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface StockOption {
@@ -51,12 +49,18 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
   const [autoExpiry, setAutoExpiry] = useState("")
   const [autoMedicineName, setAutoMedicineName] = useState("")
 
+  // combobox state
+  const [comboOpen, setComboOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+
   const resetForm = () => {
     formRef.current?.reset()
     setSelectedBatch("")
     setAutoMrp("")
     setAutoExpiry("")
     setAutoMedicineName("")
+    setSearchQuery("")
+    setComboOpen(false)
   }
 
   useEffect(() => {
@@ -74,6 +78,8 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
 
   const handleBatchSelect = (value: string) => {
     setSelectedBatch(value)
+    setComboOpen(false)
+    setSearchQuery("")
     const stock = stocks.find((s) => s.batch_number === value)
     if (stock) {
       setAutoMrp(String(stock.mrp))
@@ -135,21 +141,69 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
 
               <div className="space-y-1">
                 <Label>Batch / Medicine</Label>
-                <Select onValueChange={handleBatchSelect}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a batch…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stocks.length === 0 && (
-                      <SelectItem value="__empty__" disabled>No stock available</SelectItem>
-                    )}
-                    {stocks.map((s) => (
-                      <SelectItem key={s.batch_number} value={s.batch_number}>
-                        {s.medicine_name} — {s.batch_number} ({s.quantity_available} left)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={comboOpen} onOpenChange={setComboOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={comboOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {selectedBatch
+                        ? `${autoMedicineName} — ${selectedBatch}`
+                        : "Select a batch…"}
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <div className="p-2 border-b">
+                      <Input
+                        autoFocus
+                        placeholder="Search medicine or batch…"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <ul className="max-h-56 overflow-y-auto py-1">
+                      {stocks
+                        .filter((s) => {
+                          const q = searchQuery.toLowerCase()
+                          return (
+                            s.medicine_name.toLowerCase().includes(q) ||
+                            s.batch_number.toLowerCase().includes(q)
+                          )
+                        })
+                        .map((s) => (
+                          <li key={s.batch_number}>
+                            <button
+                              type="button"
+                              onClick={() => handleBatchSelect(s.batch_number)}
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent"
+                            >
+                              <Check
+                                className={cn(
+                                  "h-3 w-3 shrink-0",
+                                  selectedBatch === s.batch_number ? "opacity-100" : "opacity-0",
+                                )}
+                              />
+                              <span className="flex-1 text-left">
+                                {s.medicine_name}{" "}
+                                <span className="text-muted-foreground text-xs">— {s.batch_number} ({s.quantity_available} left)</span>
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      {stocks.filter((s) => {
+                        const q = searchQuery.toLowerCase()
+                        return s.medicine_name.toLowerCase().includes(q) || s.batch_number.toLowerCase().includes(q)
+                      }).length === 0 && (
+                        <li className="px-3 py-2 text-sm text-muted-foreground">No matches found.</li>
+                      )}
+                    </ul>
+                  </PopoverContent>
+                </Popover>
                 {state.errors?.batch_number && (
                   <p className="text-xs text-destructive">{state.errors.batch_number[0]}</p>
                 )}

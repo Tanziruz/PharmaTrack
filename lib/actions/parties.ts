@@ -1,5 +1,6 @@
 "use server"
 
+import { cache } from "@/lib/cache"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { createClient } from "@/utils/supabase/server"
@@ -52,7 +53,7 @@ export async function deleteParty(id: string): Promise<PartyActionState> {
   return { success: true, message: "Party deleted." }
 }
 
-export async function getParties() {
+export const getParties = cache(async () => {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("parties")
@@ -60,4 +61,4 @@ export async function getParties() {
     .order("name", { ascending: true })
   if (error) return []
   return data ?? []
-}
+})

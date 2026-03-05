@@ -1,5 +1,6 @@
 "use server"
 
+import { cache } from "@/lib/cache"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { createClient } from "@/utils/supabase/server"
@@ -21,19 +22,21 @@ async function syncExpiredEntries() {
   const supabase = await createClient()
   const today = new Date().toISOString().split("T")[0]
 
-  const { data: expiredStocks } = await supabase
-    .from("stocks")
-    .select("medicine_name, batch_number, quantity_available, supplier_name")
-    .lt("expiry_date", today)
-    .gt("quantity_available", 0)
+  // Both reads are independent — run in parallel
+  const [{ data: expiredStocks }, { data: pendingExpiredEntries }] = await Promise.all([
+    supabase
+      .from("stocks")
+      .select("medicine_name, batch_number, quantity_available, supplier_name")
+      .lt("expiry_date", today)
+      .gt("quantity_available", 0),
+    supabase
+      .from("to_be_ordered")
+      .select("id, batch_number")
+      .eq("reason", "expiring_soon")
+      .eq("is_ordered", false),
+  ])
 
   const expiredBatches = new Set((expiredStocks ?? []).map((s) => s.batch_number))
-
-  const { data: pendingExpiredEntries } = await supabase
-    .from("to_be_ordered")
-    .select("id, batch_number")
-    .eq("reason", "expiring_soon")
-    .eq("is_ordered", false)
 
   // Build a set of batches already in the table — checked in-memory, no per-row queries
   const alreadyTracked = new Set(
@@ -105,6 +108,7 @@ export async function addManualOrder(
   }
 
   revalidatePath("/to-order")
+  revalidatePath("/")
 
   return { success: true, message: "Added to order list." }
 }
@@ -132,8 +136,8 @@ export async function markAsOrdered(id: string): Promise<ToOrderActionState> {
   }
 
   revalidatePath("/to-order")
-  revalidatePath("/")
   revalidatePath("/stocks")
+  revalidatePath("/")
 
   return { success: true, message: "Marked as ordered." }
 }
@@ -166,32 +170,24 @@ export async function deleteOrderEntry(id: string): Promise<ToOrderActionState> 
   }
 
   revalidatePath("/to-order")
+  revalidatePath("/")
 
   return { success: true, message: "Entry removed." }
 }
 
-export async function getToBeOrdered() {
+export const getToBeOrdered = cache(async () => {
   await syncExpiredEntries()
-
   const supabase = await createClient()
-
   const { data, error } = await supabase
     .from("to_be_ordered")
     .select("*")
     .order("created_at", { ascending: false })
-
   if (error) throw new Error(error.message)
-  return data
-}
+  return data ?? []
+})
 
+// Derives from cached getToBeOrdered() — no extra DB query
 export async function getPendingOrderCount() {
-  const supabase = await createClient()
-
-  const { count, error } = await supabase
-    .from("to_be_ordered")
-    .select("*", { count: "exact", head: true })
-    .eq("is_ordered", false)
-
-  if (error) return 0
-  return count ?? 0
+  const items = await getToBeOrdered()
+  return items.filter((i) => !i.is_ordered).length
 }

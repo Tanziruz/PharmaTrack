@@ -1,5 +1,6 @@
 "use server"
 
+import { cache } from "@/lib/cache"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { createClient } from "@/utils/supabase/server"
@@ -28,16 +29,15 @@ export async function recalculateStockAndOrders(
   mrp: number,
   expiryDate: string,
 ) {
-  // Run purchases and sales queries in parallel — they're independent
-  const [{ data: purchases }, { data: sales }] = await Promise.all([
-    supabase
-      .from("purchases")
-      .select("quantity_bought, supplier_name")
-      .eq("batch_number", batchNumber),
-    supabase
-      .from("sales")
-      .select("quantity_sold")
-      .eq("batch_number", batchNumber),
+  // All 3 reads fire in parallel — independent of each other
+  const [
+    { data: purchases },
+    { data: sales },
+    { data: existingStock },
+  ] = await Promise.all([
+    supabase.from("purchases").select("quantity_bought, supplier_name").eq("batch_number", batchNumber),
+    supabase.from("sales").select("quantity_sold").eq("batch_number", batchNumber),
+    supabase.from("stocks").select("id, reorder_level").eq("batch_number", batchNumber).maybeSingle(),
   ])
 
   const totalBought = (purchases ?? []).reduce(
@@ -56,49 +56,35 @@ export async function recalculateStockAndOrders(
 
   const newQty = Math.max(0, totalBought - totalSold)
 
-  // Upsert stock row
-  const { data: existingStock } = await supabase
-    .from("stocks")
-    .select("id, reorder_level")
-    .eq("batch_number", batchNumber)
-    .maybeSingle()
+  // Stock upsert + to-be-ordered delete are independent — run in parallel
+  await Promise.all([
+    existingStock
+      ? supabase.from("stocks").update({
+          quantity_available: newQty,
+          medicine_name: medicineName,
+          mrp,
+          expiry_date: expiryDate,
+          supplier_name: supplierName,
+          updated_at: new Date().toISOString(),
+        }).eq("id", existingStock.id)
+      : totalBought > 0
+        ? supabase.from("stocks").insert({
+            medicine_name: medicineName,
+            batch_number: batchNumber,
+            mrp,
+            expiry_date: expiryDate,
+            quantity_available: newQty,
+            supplier_name: supplierName,
+          })
+        : Promise.resolve(),
+    supabase
+      .from("to_be_ordered")
+      .delete()
+      .eq("batch_number", batchNumber)
+      .in("reason", ["low_stock", "out_of_stock"])
+      .eq("is_ordered", false),
+  ])
 
-  let reorderLevel = 10 // default
-
-  if (existingStock) {
-    reorderLevel = existingStock.reorder_level
-    await supabase
-      .from("stocks")
-      .update({
-        quantity_available: newQty,
-        medicine_name: medicineName,
-        mrp,
-        expiry_date: expiryDate,
-        supplier_name: supplierName,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existingStock.id)
-  } else if (totalBought > 0) {
-    await supabase.from("stocks").insert({
-      medicine_name: medicineName,
-      batch_number: batchNumber,
-      mrp,
-      expiry_date: expiryDate,
-      quantity_available: newQty,
-      supplier_name: supplierName,
-    })
-  }
-
-  // ── Sync to_be_ordered ────────────────────────────────────────────────────
-  // Remove old auto-generated pending entries for this batch
-  await supabase
-    .from("to_be_ordered")
-    .delete()
-    .eq("batch_number", batchNumber)
-    .in("reason", ["low_stock", "out_of_stock"])
-    .eq("is_ordered", false)
-
-  // Whatever has been sold should appear in to-be-ordered
   if (totalSold > 0) {
     await supabase.from("to_be_ordered").insert({
       medicine_name: medicineName,
@@ -138,54 +124,44 @@ export async function updateReorderLevel(
 
   revalidatePath("/stocks")
   revalidatePath("/to-order")
+  revalidatePath("/")
 
   return { success: true, message: "Reorder level updated." }
 }
 
-export async function getStocks() {
+export const getStocks = cache(async () => {
   const supabase = await createClient()
-
   const { data, error } = await supabase
     .from("stocks")
     .select("*")
     .order("medicine_name", { ascending: true })
-
   if (error) throw new Error(error.message)
-  return data
-}
-
-export async function getStockSummary() {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase.from("stocks").select("*")
-  if (error) return { total: 0, lowStock: 0, expiringSoon: 0 }
-
-  const today = new Date()
-  const in60Days = new Date(today)
-  in60Days.setDate(today.getDate() + 60)
-
-  const total = data.length
-  const lowStock = data.filter(
-    (s) => s.quantity_available > 0 && s.quantity_available < s.reorder_level,
-  ).length
-  const outOfStock = data.filter((s) => s.quantity_available === 0).length
-  const expiringSoon = data.filter((s) => {
-    const exp = new Date(s.expiry_date)
-    return exp <= in60Days && exp >= today
-  }).length
-
-  return { total, lowStock, outOfStock, expiringSoon }
-}
-
-export async function getStockBatchNumbers() {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from("stocks")
-    .select("medicine_name, batch_number, mrp, expiry_date, quantity_available")
-    .gt("quantity_available", 0)
-    .order("medicine_name")
-
-  if (error) return []
   return data ?? []
+})
+
+// Derives stats from the cached getStocks() — no extra DB query
+export async function getStockSummary() {
+  const data = await getStocks()
+  const today = new Date()
+  const in60Days = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000)
+  return {
+    total:        data.length,
+    lowStock:     data.filter((s) => s.quantity_available > 0 && s.quantity_available < s.reorder_level).length,
+    outOfStock:   data.filter((s) => s.quantity_available === 0).length,
+    expiringSoon: data.filter((s) => { const exp = new Date(s.expiry_date); return exp <= in60Days && exp >= today }).length,
+  }
+}
+
+// Derives from cached getStocks() — no extra DB query
+export async function getStockBatchNumbers() {
+  const data = await getStocks()
+  return data
+    .filter((s) => s.quantity_available > 0)
+    .map((s) => ({
+      medicine_name:      s.medicine_name,
+      batch_number:       s.batch_number,
+      mrp:                s.mrp,
+      expiry_date:        s.expiry_date,
+      quantity_available: s.quantity_available,
+    }))
 }

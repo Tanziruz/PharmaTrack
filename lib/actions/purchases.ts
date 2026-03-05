@@ -1,5 +1,6 @@
 "use server"
 
+import { cache } from "@/lib/cache"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { createClient } from "@/utils/supabase/server"
@@ -25,7 +26,6 @@ function revalidateAll() {
   revalidatePath("/purchases")
   revalidatePath("/stocks")
   revalidatePath("/to-order")
-  revalidatePath("/sales")
   revalidatePath("/")
 }
 
@@ -102,13 +102,13 @@ export async function editPurchase(
   const { error } = await supabase.from("purchases").update(parsed.data).eq("id", id)
   if (error) return { success: false, message: `Database error: ${error.message}` }
 
-  // Recalculate stock for old batch (if batch changed)
-  if (oldPurchase.batch_number !== parsed.data.batch_number) {
-    await recalculateStockAndOrders(supabase, oldPurchase.batch_number, oldPurchase.medicine_name, oldPurchase.mrp, oldPurchase.expiry_date)
-  }
-
-  // Recalculate stock for current batch
-  await recalculateStockAndOrders(supabase, parsed.data.batch_number, parsed.data.medicine_name, parsed.data.mrp, parsed.data.expiry_date)
+  // Recalculate both batches in parallel where applicable
+  await Promise.all([
+    oldPurchase.batch_number !== parsed.data.batch_number
+      ? recalculateStockAndOrders(supabase, oldPurchase.batch_number, oldPurchase.medicine_name, oldPurchase.mrp, oldPurchase.expiry_date)
+      : Promise.resolve(),
+    recalculateStockAndOrders(supabase, parsed.data.batch_number, parsed.data.medicine_name, parsed.data.mrp, parsed.data.expiry_date),
+  ])
 
   revalidateAll()
   return { success: true, message: "Purchase updated successfully." }
@@ -129,14 +129,12 @@ export async function deletePurchase(id: string): Promise<PurchaseActionState> {
   return { success: true, message: "Purchase deleted." }
 }
 
-export async function getPurchases() {
+export const getPurchases = cache(async () => {
   const supabase = await createClient()
-
   const { data, error } = await supabase
     .from("purchases")
     .select("*")
     .order("created_at", { ascending: false })
-
   if (error) throw new Error(error.message)
-  return data
-}
+  return data ?? []
+})
