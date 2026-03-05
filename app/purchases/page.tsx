@@ -2,6 +2,7 @@ import { getPurchases } from "@/lib/actions/purchases"
 import { getParties } from "@/lib/actions/parties"
 import { AddPurchaseDialog } from "@/components/purchases/add-purchase-dialog"
 import { PurchasesTable } from "@/components/purchases/purchases-table"
+import { ImportBillDialog } from "@/components/purchases/import-bill-dialog"
 
 export default async function PurchasesPage() {
   const [purchases, parties] = await Promise.all([getPurchases(), getParties()])
@@ -15,7 +16,10 @@ export default async function PurchasesPage() {
             Record and view all incoming stock batches
           </p>
         </div>
-        <AddPurchaseDialog parties={parties} />
+        <div className="flex items-center gap-2">
+          <ImportBillDialog parties={parties} />
+          <AddPurchaseDialog parties={parties} />
+        </div>
       </div>
 
       <PurchasesTable purchases={purchases ?? []} parties={parties} />
