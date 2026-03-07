@@ -18,11 +18,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Check, ChevronDown, Plus, Trash2 } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Check, ChevronDown, Download, Plus, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MedicineScanner } from "@/components/ui/medicine-scanner"
 import type { PackagingScanResult } from "@/lib/utils/ocr-extract"
 import { Separator } from "@/components/ui/separator"
+import { generateBillPDF } from "@/lib/utils/generate-bill-pdf"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -309,6 +317,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
   const [open, setOpen] = useState(false)
   const [entries, setEntries] = useState<SaleEntryData[]>([createSaleEntry()])
   const [saleDate, setSaleDate] = useState("")
+  const [discount, setDiscount] = useState("10")
   const [isPending, startTransition] = useTransition()
 
   const today = new Date().toISOString().split("T")[0]
@@ -316,6 +325,14 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
   const reset = () => {
     setEntries([createSaleEntry()])
     setSaleDate("")
+    setDiscount("10")
+  }
+
+  const applyDiscount = (mrp: string, disc: string): string => {
+    const mrpNum = parseFloat(mrp)
+    if (isNaN(mrpNum) || mrpNum <= 0) return ""
+    const discNum = parseFloat(disc)
+    return (mrpNum * (1 - discNum / 100)).toFixed(2)
   }
 
   const updateEntry = (
@@ -333,9 +350,24 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
           updated.batch_number = ""
           updated.mrp = ""
           updated.expiry_date = ""
+          updated.selling_price = ""
+        }
+        // Auto-compute selling price when MRP changes
+        if (field === "mrp") {
+          updated.selling_price = applyDiscount(value, discount)
         }
         return updated
       }),
+    )
+  }
+
+  const handleDiscountChange = (newDiscount: string) => {
+    setDiscount(newDiscount)
+    setEntries((prev) =>
+      prev.map((e) => ({
+        ...e,
+        selling_price: applyDiscount(e.mrp, newDiscount),
+      })),
     )
   }
 
@@ -351,12 +383,14 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
     setEntries((prev) =>
       prev.map((e) => {
         if (e.key !== key) return e
+        const mrpStr = String(stock.mrp)
         return {
           ...e,
           medicine_name: stock.medicine_name,
           batch_number: stock.batch_number,
-          mrp: String(stock.mrp),
+          mrp: mrpStr,
           expiry_date: stock.expiry_date,
+          selling_price: applyDiscount(mrpStr, discount),
         }
       }),
     )
@@ -375,13 +409,15 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
       setEntries((prev) =>
         prev.map((e) => {
           if (e.key !== key) return e
+          const mrpStr = String(match.mrp)
           return {
             ...e,
             mode: "stock" as Mode,
             medicine_name: match.medicine_name,
             batch_number: match.batch_number,
-            mrp: String(match.mrp),
+            mrp: mrpStr,
             expiry_date: match.expiry_date,
+            selling_price: applyDiscount(mrpStr, discount),
           }
         }),
       )
@@ -476,6 +512,20 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
             />
           </div>
 
+          {/* Discount dropdown */}
+          <div className="space-y-1">
+            <Label>Discount %</Label>
+            <Select value={discount} onValueChange={handleDiscountChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select discount" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10%</SelectItem>
+                <SelectItem value="15">15%</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <Separator />
 
           {/* Entry cards */}
@@ -512,6 +562,34 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
             onClick={() => setOpen(false)}
           >
             Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              const date = saleDate || today
+              const validEntries = entries.filter(
+                (e) => e.medicine_name && e.batch_number && e.mrp && e.quantity_sold,
+              )
+              if (validEntries.length === 0) {
+                toast.error("Fill in at least one complete item to generate a bill.")
+                return
+              }
+              generateBillPDF({
+                date,
+                items: validEntries.map((e) => ({
+                  medicine_name: e.medicine_name,
+                  batch_number: e.batch_number,
+                  expiry_date: e.expiry_date,
+                  quantity: parseInt(e.quantity_sold) || 0,
+                  rate: parseFloat(e.selling_price) || parseFloat(applyDiscount(e.mrp, discount)) || 0,
+                })),
+              })
+              toast.success("Bill downloaded.")
+            }}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            Download Bill
           </Button>
           <Button onClick={handleSubmit} disabled={isPending}>
             {isPending

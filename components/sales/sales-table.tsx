@@ -15,8 +15,16 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Trash2, Search } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Trash2, Search, Download } from "lucide-react"
 import { format } from "date-fns"
+import { generateBillPDF } from "@/lib/utils/generate-bill-pdf"
 
 interface SalesTableProps {
   sales: Sale[]
@@ -25,6 +33,8 @@ interface SalesTableProps {
 export function SalesTable({ sales }: SalesTableProps) {
   const [isPending, startTransition] = useTransition()
   const [query, setQuery] = useState("")
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [billDiscount, setBillDiscount] = useState("10")
 
   const q = query.toLowerCase()
   const filtered = sales.filter(
@@ -43,21 +53,85 @@ export function SalesTable({ sales }: SalesTableProps) {
     })
   }
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filtered.map((s) => s.id)))
+    }
+  }
+
+  const handleGenerateBill = () => {
+    const selected = sales.filter((s) => selectedIds.has(s.id))
+    if (selected.length === 0) {
+      toast.error("Select at least one sale to generate a bill.")
+      return
+    }
+    const discNum = parseFloat(billDiscount)
+    generateBillPDF({
+      date: new Date().toISOString().split("T")[0],
+      items: selected.map((s) => ({
+        medicine_name: s.medicine_name,
+        batch_number: s.batch_number,
+        expiry_date: s.expiry_date,
+        quantity: s.quantity_sold,
+        rate: Number((Number(s.mrp) * (1 - discNum / 100)).toFixed(2)),
+      })),
+    })
+    toast.success("Bill downloaded.")
+  }
+
   return (
     <div className="space-y-3">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search by medicine, batch, or date…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="pl-8"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by medicine, batch, or date…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2">
+            <Select value={billDiscount} onValueChange={setBillDiscount}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue placeholder="Discount" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10%</SelectItem>
+                <SelectItem value="15">15%</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="secondary" onClick={handleGenerateBill}>
+              <Download className="h-4 w-4 mr-1" />
+              Generate Bill ({selectedIds.size})
+            </Button>
+          </div>
+        )}
       </div>
     <div className="rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-10">
+              <input
+                type="checkbox"
+                checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                onChange={toggleSelectAll}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+            </TableHead>
             <TableHead>Medicine</TableHead>
             <TableHead>Batch No.</TableHead>
             <TableHead className="text-right">MRP (₹)</TableHead>
@@ -71,7 +145,15 @@ export function SalesTable({ sales }: SalesTableProps) {
         <TableBody>
           {filtered.length > 0 ? (
             filtered.map((s) => (
-              <TableRow key={s.id}>
+              <TableRow key={s.id} className={selectedIds.has(s.id) ? "bg-muted/50" : ""}>
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(s.id)}
+                    onChange={() => toggleSelect(s.id)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                </TableCell>
                 <TableCell className="font-medium">{s.medicine_name}</TableCell>
                 <TableCell>
                   <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
@@ -103,7 +185,7 @@ export function SalesTable({ sales }: SalesTableProps) {
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+              <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                 {query ? "No sales match your search." : "No sales recorded yet. Click \"Record Sale\" to get started."}
               </TableCell>
             </TableRow>
