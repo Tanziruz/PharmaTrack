@@ -72,7 +72,8 @@ export default function ClearAllPage() {
               <CardTitle className="text-red-600">Danger Zone</CardTitle>
               <CardDescription>
                 This will permanently delete <strong>all</strong> data including
-                stocks, purchases, sales, to-be-ordered items, and parties.
+                stocks, purchases, sales, and to-be-ordered items.
+                Party names will be preserved.
               </CardDescription>
             </div>
           </div>
@@ -86,8 +87,8 @@ export default function ClearAllPage() {
               <li>All purchase history will be deleted</li>
               <li>All sales records will be deleted</li>
               <li>All to-be-ordered items will be deleted</li>
-              <li>All parties / suppliers will be deleted</li>
             </ul>
+            <p className="text-sm font-medium">Party names will not be affected.</p>
           </div>
 
           <div className="space-y-2">

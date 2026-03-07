@@ -28,8 +28,8 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Purge all stocks, purchases, sales, orders, and parties from the
-                database. This action cannot be undone.
+                Purge all stocks, purchases, sales, and orders from the
+                database. Party names are preserved. This action cannot be undone.
               </p>
             </CardContent>
           </Card>

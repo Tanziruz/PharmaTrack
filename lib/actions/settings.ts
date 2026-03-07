@@ -15,8 +15,9 @@ export type SettingsActionState = {
 export async function purgeAllData(): Promise<SettingsActionState> {
   const supabase = await createClient()
 
-  // Delete in dependency order: sales → purchases → to_be_ordered → stocks → parties
-  const tables = ["sales", "purchases", "to_be_ordered", "stocks", "parties"] as const
+  // Delete in dependency order: sales → purchases → to_be_ordered → stocks
+  // Parties are intentionally preserved.
+  const tables = ["sales", "purchases", "to_be_ordered", "stocks"] as const
 
   for (const table of tables) {
     const { error } = await supabase.from(table).delete().neq("id", "00000000-0000-0000-0000-000000000000")
