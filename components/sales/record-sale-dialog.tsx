@@ -57,6 +57,7 @@ interface SaleEntryData {
   expiry_date: string
   quantity_sold: string
   selling_price: string
+  discount: string
 }
 
 function createSaleEntry(): SaleEntryData {
@@ -69,6 +70,7 @@ function createSaleEntry(): SaleEntryData {
     expiry_date: "",
     quantity_sold: "",
     selling_price: "",
+    discount: "10",
   }
 }
 
@@ -294,6 +296,21 @@ function SaleEntryCard({
           />
         </div>
         <div className="space-y-1">
+          <Label>Discount %</Label>
+          <Select
+            value={entry.discount}
+            onValueChange={(v) => onUpdate(entry.key, "discount", v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Discount" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10%</SelectItem>
+              <SelectItem value="15">15%</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="col-span-2 space-y-1">
           <Label>Selling Price (₹)</Label>
           <Input
             type="number"
@@ -317,7 +334,6 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
   const [open, setOpen] = useState(false)
   const [entries, setEntries] = useState<SaleEntryData[]>([createSaleEntry()])
   const [saleDate, setSaleDate] = useState("")
-  const [discount, setDiscount] = useState("10")
   const [isPending, startTransition] = useTransition()
 
   const today = new Date().toISOString().split("T")[0]
@@ -325,7 +341,6 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
   const reset = () => {
     setEntries([createSaleEntry()])
     setSaleDate("")
-    setDiscount("10")
   }
 
   const applyDiscount = (mrp: string, disc: string): string => {
@@ -354,20 +369,14 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
         }
         // Auto-compute selling price when MRP changes
         if (field === "mrp") {
-          updated.selling_price = applyDiscount(value, discount)
+          updated.selling_price = applyDiscount(value, updated.discount)
+        }
+        // Auto-compute selling price when discount changes
+        if (field === "discount") {
+          updated.selling_price = applyDiscount(updated.mrp, value)
         }
         return updated
       }),
-    )
-  }
-
-  const handleDiscountChange = (newDiscount: string) => {
-    setDiscount(newDiscount)
-    setEntries((prev) =>
-      prev.map((e) => ({
-        ...e,
-        selling_price: applyDiscount(e.mrp, newDiscount),
-      })),
     )
   }
 
@@ -390,7 +399,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
           batch_number: stock.batch_number,
           mrp: mrpStr,
           expiry_date: stock.expiry_date,
-          selling_price: applyDiscount(mrpStr, discount),
+          selling_price: applyDiscount(mrpStr, e.discount),
         }
       }),
     )
@@ -417,7 +426,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
             batch_number: match.batch_number,
             mrp: mrpStr,
             expiry_date: match.expiry_date,
-            selling_price: applyDiscount(mrpStr, discount),
+            selling_price: applyDiscount(mrpStr, e.discount),
           }
         }),
       )
@@ -512,20 +521,6 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
             />
           </div>
 
-          {/* Discount dropdown */}
-          <div className="space-y-1">
-            <Label>Discount %</Label>
-            <Select value={discount} onValueChange={handleDiscountChange}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select discount" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10%</SelectItem>
-                <SelectItem value="15">15%</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           <Separator />
 
           {/* Entry cards */}
@@ -582,7 +577,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
                   batch_number: e.batch_number,
                   expiry_date: e.expiry_date,
                   quantity: parseInt(e.quantity_sold) || 0,
-                  rate: parseFloat(e.selling_price) || parseFloat(applyDiscount(e.mrp, discount)) || 0,
+                  rate: parseFloat(e.selling_price) || parseFloat(applyDiscount(e.mrp, e.discount)) || 0,
                 })),
               })
               toast.success("Bill downloaded.")
