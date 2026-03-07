@@ -16,6 +16,14 @@ const SaleSchema = z.object({
   sale_date:     z.string().min(1, "Sale date is required"),
 })
 
+function normalizeExpiry(date: string): string {
+  if (date.length !== 7) return date
+  // "YYYY-MM" → last day of that month
+  const [y, m] = date.split("-").map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
+  return `${date}-${String(lastDay).padStart(2, "0")}`
+}
+
 export type SaleActionState = {
   success: boolean
   message: string
@@ -38,7 +46,7 @@ export async function recordSale(
     batch_number:  formData.get("batch_number"),
     mrp:           formData.get("mrp"),
     selling_price: formData.get("selling_price"),
-    expiry_date:   formData.get("expiry_date"),
+    expiry_date:   normalizeExpiry(formData.get("expiry_date") as string || ""),
     quantity_sold: formData.get("quantity_sold"),
     sale_date:     formData.get("sale_date"),
   }
@@ -100,7 +108,7 @@ export async function editSale(
     batch_number:  formData.get("batch_number"),
     mrp:           formData.get("mrp"),
     selling_price: formData.get("selling_price"),
-    expiry_date:   formData.get("expiry_date"),
+    expiry_date:   normalizeExpiry(formData.get("expiry_date") as string || ""),
     quantity_sold: formData.get("quantity_sold"),
     sale_date:     formData.get("sale_date"),
   }

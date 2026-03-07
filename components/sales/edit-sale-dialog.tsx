@@ -126,12 +126,12 @@ export function EditSaleDialog({ sale }: EditSaleDialogProps) {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor={`expiry_date_${sale.id}`}>Expiry Date</Label>
+              <Label htmlFor={`expiry_date_${sale.id}`}>Expiry (Month/Year)</Label>
               <Input
                 id={`expiry_date_${sale.id}`}
                 name="expiry_date"
-                type="date"
-                defaultValue={sale.expiry_date}
+                type="month"
+                defaultValue={sale.expiry_date.slice(0, 7)}
                 required
               />
               {state.errors?.expiry_date && (

@@ -206,7 +206,7 @@ export function StocksTable({ stocks }: StocksTableProps) {
                   )}
                 </TableCell>
                 <TableCell>
-                  {format(new Date(stock.expiry_date), "dd MMM yyyy")}
+                  {format(new Date(stock.expiry_date), "MMM yyyy")}
                 </TableCell>
                 <TableCell>{getStatusBadge(stock)}</TableCell>
               </TableRow>

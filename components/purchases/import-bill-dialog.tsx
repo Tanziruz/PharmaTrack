@@ -422,11 +422,11 @@ export function ImportBillDialog({ parties: _parties }: ImportBillDialogProps) {
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-xs">Expiry Date *</Label>
+                      <Label className="text-xs">Expiry (Month/Year) *</Label>
                       <Input
-                        value={item.expiry_date}
+                        value={item.expiry_date.length > 7 ? item.expiry_date.slice(0, 7) : item.expiry_date}
                         onChange={(e) => updateItem(item.key, "expiry_date", e.target.value)}
-                        type="date"
+                        type="month"
                         className="h-8 text-sm"
                         disabled={item.status !== "pending"}
                       />

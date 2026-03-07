@@ -16,6 +16,13 @@ const PurchaseSchema = z.object({
   supplier_name:   z.string().optional(),
 })
 
+function normalizeExpiry(date: string): string {
+  if (date.length !== 7) return date
+  const [y, m] = date.split("-").map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
+  return `${date}-${String(lastDay).padStart(2, "0")}`
+}
+
 export type PurchaseActionState = {
   success: boolean
   message: string
@@ -37,7 +44,7 @@ export async function addPurchase(
     medicine_name:   formData.get("medicine_name"),
     batch_number:    formData.get("batch_number"),
     mrp:             formData.get("mrp"),
-    expiry_date:     formData.get("expiry_date"),
+    expiry_date:     normalizeExpiry(formData.get("expiry_date") as string || ""),
     quantity_bought: formData.get("quantity_bought"),
     purchase_date:   formData.get("purchase_date"),
     supplier_name:   formData.get("supplier_name") || undefined,
@@ -78,7 +85,7 @@ export async function editPurchase(
     medicine_name:   formData.get("medicine_name"),
     batch_number:    formData.get("batch_number"),
     mrp:             formData.get("mrp"),
-    expiry_date:     formData.get("expiry_date"),
+    expiry_date:     normalizeExpiry(formData.get("expiry_date") as string || ""),
     quantity_bought: formData.get("quantity_bought"),
     purchase_date:   formData.get("purchase_date"),
     supplier_name:   formData.get("supplier_name") || undefined,

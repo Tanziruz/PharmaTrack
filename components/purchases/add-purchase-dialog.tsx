@@ -250,9 +250,9 @@ export function AddPurchaseDialog({ parties }: AddPurchaseDialogProps) {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Expiry Date</Label>
+                  <Label>Expiry (Month/Year)</Label>
                   <Input
-                    type="date"
+                    type="month"
                     value={entry.expiry_date}
                     onChange={(e) =>
                       updateEntry(entry.key, "expiry_date", e.target.value)

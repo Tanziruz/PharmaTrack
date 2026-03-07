@@ -267,9 +267,9 @@ function SaleEntryCard({
             />
           </div>
           <div className="col-span-2 space-y-1">
-            <Label>Expiry Date</Label>
+            <Label>Expiry (Month/Year)</Label>
             <Input
-              type="date"
+              type="month"
               value={entry.expiry_date}
               onChange={(e) =>
                 onUpdate(entry.key, "expiry_date", e.target.value)

@@ -44,16 +44,22 @@ export function generateBillPDF(data: BillData) {
   doc.line(14, 37, pageWidth - 14, 37)
 
   // ── Table ──────────────────────────────────────────────────────────────────
+  const formatExpiry = (dateStr: string) => {
+    if (!dateStr) return ""
+    const d = new Date(dateStr + (dateStr.length <= 7 ? "-01" : ""))
+    return d.toLocaleDateString("en-IN", { month: "short", year: "numeric" })
+  }
+
   const tableBody = data.items.map((item, i) => {
     const total = item.rate * item.quantity
     return [
       String(i + 1),
       item.medicine_name,
       item.batch_number,
-      item.expiry_date,
+      formatExpiry(item.expiry_date),
       String(item.quantity),
-      `₹${item.rate.toFixed(2)}`,
-      `₹${total.toFixed(2)}`,
+      `Rs. ${item.rate.toFixed(2)}`,
+      `Rs. ${total.toFixed(2)}`,
     ]
   })
 
@@ -64,17 +70,18 @@ export function generateBillPDF(data: BillData) {
 
   autoTable(doc, {
     startY: 42,
-    head: [["#", "Product Name", "Batch No.", "Expiry Date", "Qty", "Rate", "Amount"]],
+    head: [["#", "Product Name", "Batch No.", "Expiry", "Qty", "Rate", "Amount"]],
     body: tableBody,
-    foot: [["", "", "", "", "", "Grand Total", `₹${grandTotal.toFixed(2)}`]],
+    foot: [["", "", "", "", "", "Grand Total", `Rs. ${grandTotal.toFixed(2)}`]],
     theme: "grid",
     headStyles: {
       fillColor: [41, 128, 185],
       textColor: 255,
       fontStyle: "bold",
       fontSize: 9,
+      halign: "center",
     },
-    bodyStyles: { fontSize: 9 },
+    bodyStyles: { fontSize: 9, halign: "center" },
     footStyles: {
       fillColor: [245, 245, 245],
       textColor: [0, 0, 0],
@@ -83,6 +90,7 @@ export function generateBillPDF(data: BillData) {
     },
     columnStyles: {
       0: { halign: "center", cellWidth: 10 },
+      1: { halign: "left" },
       4: { halign: "center" },
       5: { halign: "right" },
       6: { halign: "right" },

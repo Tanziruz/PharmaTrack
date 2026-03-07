@@ -136,12 +136,12 @@ export function EditPurchaseDialog({ purchase, parties }: EditPurchaseDialogProp
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor={`expiry_date_${purchase.id}`}>Expiry Date</Label>
+              <Label htmlFor={`expiry_date_${purchase.id}`}>Expiry (Month/Year)</Label>
               <Input
                 id={`expiry_date_${purchase.id}`}
                 name="expiry_date"
-                type="date"
-                defaultValue={purchase.expiry_date}
+                type="month"
+                defaultValue={purchase.expiry_date.slice(0, 7)}
                 required
               />
               {state.errors?.expiry_date && (

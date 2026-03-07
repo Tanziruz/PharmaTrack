@@ -94,7 +94,7 @@ export function PurchasesTable({ purchases, parties }: PurchasesTableProps) {
                   <TableCell className="text-right">{p.quantity_bought}</TableCell>
                   <TableCell>
                     <span className="flex items-center gap-1.5">
-                      {format(expiry, "dd MMM yyyy")}
+                      {format(expiry, "MMM yyyy")}
                       {isExpired && (
                         <Badge variant="destructive" className="text-[10px] px-1 py-0">
                           Expired
