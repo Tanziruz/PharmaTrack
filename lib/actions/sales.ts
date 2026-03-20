@@ -14,6 +14,7 @@ const SaleSchema = z.object({
   expiry_date:   z.string().min(1, "Expiry date is required"),
   quantity_sold: z.coerce.number().int().positive("Quantity must be a positive integer"),
   sale_date:     z.string().min(1, "Sale date is required"),
+  sale_group_id: z.string().uuid().optional(),
 })
 
 function normalizeExpiry(date: string): string {
@@ -49,6 +50,7 @@ export async function recordSale(
     expiry_date:   normalizeExpiry(formData.get("expiry_date") as string || ""),
     quantity_sold: formData.get("quantity_sold"),
     sale_date:     formData.get("sale_date"),
+    sale_group_id: formData.get("sale_group_id") || undefined,
   }
 
   const parsed = SaleSchema.safeParse(raw)
@@ -111,6 +113,7 @@ export async function editSale(
     expiry_date:   normalizeExpiry(formData.get("expiry_date") as string || ""),
     quantity_sold: formData.get("quantity_sold"),
     sale_date:     formData.get("sale_date"),
+    sale_group_id: formData.get("sale_group_id") || undefined,
   }
 
   const parsed = SaleSchema.safeParse(raw)

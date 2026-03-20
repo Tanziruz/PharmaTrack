@@ -25,6 +25,7 @@ import {
 import { Trash2, Search, Download } from "lucide-react"
 import { format } from "date-fns"
 import { generateBillPDF } from "@/lib/utils/generate-bill-pdf"
+import { SalesHistoryDialog } from "@/components/sales/sales-history-dialog"
 
 interface SalesTableProps {
   sales: Sale[]
@@ -84,6 +85,7 @@ export function SalesTable({ sales }: SalesTableProps) {
         batch_number: s.batch_number,
         expiry_date: s.expiry_date,
         quantity: s.quantity_sold,
+        mrp: Number(s.mrp),
         rate: Number((Number(s.mrp) * (1 - discNum / 100)).toFixed(2)),
       })),
     })
@@ -102,10 +104,11 @@ export function SalesTable({ sales }: SalesTableProps) {
             className="pl-8"
           />
         </div>
+        <SalesHistoryDialog sales={sales} />
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2">
             <Select value={billDiscount} onValueChange={setBillDiscount}>
-              <SelectTrigger className="w-[100px]">
+              <SelectTrigger className="w-25">
                 <SelectValue placeholder="Discount" />
               </SelectTrigger>
               <SelectContent>

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { createClient } from "@/utils/supabase/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import type { Database, Stock } from "@/lib/types/database"
 
 const UpdateReorderLevelSchema = z.object({
   id:            z.string().uuid(),
@@ -21,9 +22,8 @@ export type StockActionState = {
  * tables (source of truth), then sync the `to_be_ordered` table.
  * This is the single function called after every purchase/sale add/edit/delete.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function recalculateStockAndOrders(
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   batchNumber: string,
   medicineName: string,
   mrp: number,
@@ -33,11 +33,11 @@ export async function recalculateStockAndOrders(
   const [
     { data: purchases },
     { data: sales },
-    { data: existingStock },
+    { data: existingStocks },
   ] = await Promise.all([
     supabase.from("purchases").select("quantity_bought, supplier_name").eq("batch_number", batchNumber),
     supabase.from("sales").select("quantity_sold").eq("batch_number", batchNumber),
-    supabase.from("stocks").select("id, reorder_level").eq("batch_number", batchNumber).maybeSingle(),
+    supabase.from("stocks").select("id, reorder_level").eq("batch_number", batchNumber).order("created_at", { ascending: true }),
   ])
 
   const totalBought = (purchases ?? []).reduce(
@@ -55,18 +55,25 @@ export async function recalculateStockAndOrders(
   )
 
   const newQty = Math.max(0, totalBought - totalSold)
+  const primaryStock = (existingStocks ?? [])[0]
+  const reorderLevel = (existingStocks ?? []).reduce(
+    (maxLevel: number, row: { reorder_level: number }) => Math.max(maxLevel, row.reorder_level),
+    10,
+  )
+  const duplicateIds = (existingStocks ?? []).slice(1).map((row: { id: string }) => row.id)
 
   // Stock upsert + to-be-ordered delete are independent — run in parallel
   await Promise.all([
-    existingStock
+    primaryStock
       ? supabase.from("stocks").update({
           quantity_available: newQty,
           medicine_name: medicineName,
           mrp,
           expiry_date: expiryDate,
+          reorder_level: reorderLevel,
           supplier_name: supplierName,
           updated_at: new Date().toISOString(),
-        }).eq("id", existingStock.id)
+        }).eq("id", primaryStock.id)
       : totalBought > 0
         ? supabase.from("stocks").insert({
             medicine_name: medicineName,
@@ -74,9 +81,13 @@ export async function recalculateStockAndOrders(
             mrp,
             expiry_date: expiryDate,
             quantity_available: newQty,
+            reorder_level: reorderLevel,
             supplier_name: supplierName,
           })
         : Promise.resolve(),
+    duplicateIds.length > 0
+      ? supabase.from("stocks").delete().in("id", duplicateIds)
+      : Promise.resolve(),
     supabase
       .from("to_be_ordered")
       .delete()
@@ -113,10 +124,20 @@ export async function updateReorderLevel(
 
   const supabase = await createClient()
 
+  const { data: stockRow, error: stockFindError } = await supabase
+    .from("stocks")
+    .select("batch_number")
+    .eq("id", parsed.data.id)
+    .maybeSingle()
+
+  if (stockFindError || !stockRow) {
+    return { success: false, message: "Stock row not found." }
+  }
+
   const { error } = await supabase
     .from("stocks")
     .update({ reorder_level: parsed.data.reorder_level, updated_at: new Date().toISOString() })
-    .eq("id", parsed.data.id)
+    .eq("batch_number", stockRow.batch_number)
 
   if (error) {
     return { success: false, message: `Database error: ${error.message}` }
@@ -134,9 +155,28 @@ export const getStocks = cache(async () => {
   const { data, error } = await supabase
     .from("stocks")
     .select("*")
-    .order("medicine_name", { ascending: true })
+    .order("updated_at", { ascending: false })
   if (error) throw new Error(error.message)
-  return data ?? []
+
+  const grouped = new Map<string, Stock>()
+
+  for (const stock of data ?? []) {
+    const existing = grouped.get(stock.batch_number)
+    if (!existing) {
+      grouped.set(stock.batch_number, { ...stock })
+      continue
+    }
+
+    // If duplicate rows exist for a batch, present one merged stock row in the UI.
+    existing.quantity_available += stock.quantity_available
+    existing.reorder_level = Math.max(existing.reorder_level, stock.reorder_level)
+
+    if (!existing.supplier_name && stock.supplier_name) {
+      existing.supplier_name = stock.supplier_name
+    }
+  }
+
+  return Array.from(grouped.values()).sort((a, b) => a.medicine_name.localeCompare(b.medicine_name))
 })
 
 // Derives stats from the cached getStocks() — no extra DB query

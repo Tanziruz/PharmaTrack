@@ -42,6 +42,7 @@ CREATE TABLE purchases (
 -- Immutable log of outgoing sales.
 CREATE TABLE sales (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sale_group_id  UUID,
   medicine_name  TEXT NOT NULL,
   batch_number   TEXT NOT NULL,
   mrp            NUMERIC(10,2) NOT NULL,

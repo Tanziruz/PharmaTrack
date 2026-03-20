@@ -49,6 +49,7 @@ export interface Purchase {
 
 export interface Sale {
   id: string
+  sale_group_id: string | null
   medicine_name: string
   batch_number: string
   mrp: number

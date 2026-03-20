@@ -173,7 +173,7 @@ function SaleEntryCard({
                 </Button>
               </PopoverTrigger>
               <PopoverContent
-                className="w-[var(--radix-popover-trigger-width)] p-0"
+                className="w-(--radix-popover-trigger-width) p-0"
                 align="start"
               >
                 <div className="p-2 border-b">
@@ -451,6 +451,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
   const handleSubmit = () => {
     startTransition(async () => {
       const date = saleDate || today
+      const saleGroupId = crypto.randomUUID()
       const results = await Promise.all(
         entries.map(async (entry) => {
           const fd = new FormData()
@@ -461,6 +462,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
           fd.set("quantity_sold", entry.quantity_sold)
           fd.set("selling_price", entry.selling_price)
           fd.set("sale_date", date)
+          fd.set("sale_group_id", saleGroupId)
           fd.set(
             "manual_entry",
             entry.mode === "manual" ? "true" : "false",
@@ -577,6 +579,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
                   batch_number: e.batch_number,
                   expiry_date: e.expiry_date,
                   quantity: parseInt(e.quantity_sold) || 0,
+                  mrp: parseFloat(e.mrp) || 0,
                   rate: parseFloat(e.selling_price) || parseFloat(applyDiscount(e.mrp, e.discount)) || 0,
                 })),
               })
