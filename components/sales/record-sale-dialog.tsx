@@ -451,6 +451,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
   const handleSubmit = () => {
     startTransition(async () => {
       const date = saleDate || today
+      const groupId = crypto.randomUUID()
       const results = await Promise.all(
         entries.map(async (entry) => {
           const fd = new FormData()
@@ -461,6 +462,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
           fd.set("quantity_sold", entry.quantity_sold)
           fd.set("selling_price", entry.selling_price)
           fd.set("sale_date", date)
+          fd.set("sale_group_id", groupId)
           fd.set(
             "manual_entry",
             entry.mode === "manual" ? "true" : "false",
@@ -578,6 +580,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
                   expiry_date: e.expiry_date,
                   quantity: parseInt(e.quantity_sold) || 0,
                   rate: parseFloat(e.selling_price) || parseFloat(applyDiscount(e.mrp, e.discount)) || 0,
+                  mrp: parseFloat(e.mrp) || 0,
                 })),
               })
               toast.success("Bill downloaded.")

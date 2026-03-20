@@ -85,6 +85,7 @@ export function SalesTable({ sales }: SalesTableProps) {
         expiry_date: s.expiry_date,
         quantity: s.quantity_sold,
         rate: Number((Number(s.mrp) * (1 - discNum / 100)).toFixed(2)),
+        mrp: Number(s.mrp),
       })),
     })
     toast.success("Bill downloaded.")

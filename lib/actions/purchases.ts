@@ -61,10 +61,36 @@ export async function addPurchase(
 
   const supabase = await createClient()
 
-  const { error } = await supabase.from("purchases").insert(parsed.data)
+  // Check if a purchase with the same batch_number already exists — if so,
+  // merge quantities into one record instead of creating a separate entry.
+  // The latest purchase's mrp, expiry_date, purchase_date, and supplier_name
+  // take precedence, which allows correcting field values on re-purchase.
+  const { data: existingPurchase } = await supabase
+    .from("purchases")
+    .select("id, quantity_bought")
+    .eq("batch_number", parsed.data.batch_number)
+    .maybeSingle()
 
-  if (error) {
-    return { success: false, message: `Database error: ${error.message}` }
+  if (existingPurchase) {
+    const { error } = await supabase
+      .from("purchases")
+      .update({
+        medicine_name:   parsed.data.medicine_name,
+        mrp:             parsed.data.mrp,
+        expiry_date:     parsed.data.expiry_date,
+        quantity_bought: existingPurchase.quantity_bought + parsed.data.quantity_bought,
+        purchase_date:   parsed.data.purchase_date,
+        supplier_name:   parsed.data.supplier_name ?? null,
+      })
+      .eq("id", existingPurchase.id)
+    if (error) {
+      return { success: false, message: `Database error: ${error.message}` }
+    }
+  } else {
+    const { error } = await supabase.from("purchases").insert(parsed.data)
+    if (error) {
+      return { success: false, message: `Database error: ${error.message}` }
+    }
   }
 
   // Recalculate stock from scratch for this batch

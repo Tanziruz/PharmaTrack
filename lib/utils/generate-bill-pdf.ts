@@ -7,6 +7,7 @@ export interface BillItem {
   expiry_date: string
   quantity: number
   rate: number // selling price per unit
+  mrp: number  // maximum retail price
 }
 
 export interface BillData {
@@ -58,6 +59,7 @@ export function generateBillPDF(data: BillData) {
       item.batch_number,
       formatExpiry(item.expiry_date),
       String(item.quantity),
+      `Rs. ${item.mrp.toFixed(2)}`,
       `Rs. ${item.rate.toFixed(2)}`,
       `Rs. ${total.toFixed(2)}`,
     ]
@@ -70,9 +72,9 @@ export function generateBillPDF(data: BillData) {
 
   autoTable(doc, {
     startY: 42,
-    head: [["#", "Product Name", "Batch No.", "Expiry", "Qty", "Rate", "Amount"]],
+    head: [["#", "Product Name", "Batch No.", "Expiry", "Qty", "MRP", "Rate", "Amount"]],
     body: tableBody,
-    foot: [["", "", "", "", "", "Grand Total", `Rs. ${grandTotal.toFixed(2)}`]],
+    foot: [["", "", "", "", "", "", "Grand Total", `Rs. ${grandTotal.toFixed(2)}`]],
     theme: "grid",
     headStyles: {
       fillColor: [41, 128, 185],
@@ -94,6 +96,7 @@ export function generateBillPDF(data: BillData) {
       4: { halign: "center" },
       5: { halign: "right" },
       6: { halign: "right" },
+      7: { halign: "right" },
     },
     margin: { left: 14, right: 14 },
   })

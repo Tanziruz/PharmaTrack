@@ -56,6 +56,7 @@ export interface Sale {
   expiry_date: string
   quantity_sold: number
   sale_date: string
+  sale_group_id: string | null
   created_at: string
 }
 

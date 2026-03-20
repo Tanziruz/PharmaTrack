@@ -7,13 +7,14 @@ import { createClient } from "@/utils/supabase/server"
 import { recalculateStockAndOrders } from "@/lib/actions/stocks"
 
 const SaleSchema = z.object({
-  medicine_name: z.string().min(1, "Medicine name is required"),
-  batch_number:  z.string().min(1, "Batch number is required"),
-  mrp:           z.coerce.number().positive("MRP must be positive"),
-  selling_price: z.coerce.number().positive("Selling price must be positive"),
-  expiry_date:   z.string().min(1, "Expiry date is required"),
-  quantity_sold: z.coerce.number().int().positive("Quantity must be a positive integer"),
-  sale_date:     z.string().min(1, "Sale date is required"),
+  medicine_name:  z.string().min(1, "Medicine name is required"),
+  batch_number:   z.string().min(1, "Batch number is required"),
+  mrp:            z.coerce.number().positive("MRP must be positive"),
+  selling_price:  z.coerce.number().positive("Selling price must be positive"),
+  expiry_date:    z.string().min(1, "Expiry date is required"),
+  quantity_sold:  z.coerce.number().int().positive("Quantity must be a positive integer"),
+  sale_date:      z.string().min(1, "Sale date is required"),
+  sale_group_id:  z.string().uuid().optional(),
 })
 
 function normalizeExpiry(date: string): string {
@@ -49,6 +50,7 @@ export async function recordSale(
     expiry_date:   normalizeExpiry(formData.get("expiry_date") as string || ""),
     quantity_sold: formData.get("quantity_sold"),
     sale_date:     formData.get("sale_date"),
+    sale_group_id: formData.get("sale_group_id") || undefined,
   }
 
   const parsed = SaleSchema.safeParse(raw)
