@@ -7,8 +7,8 @@ import { createClient } from "@/utils/supabase/server"
 import { recalculateStockAndOrders } from "@/lib/actions/stocks"
 
 const PurchaseSchema = z.object({
-  medicine_name:   z.string().min(1, "Medicine name is required"),
-  batch_number:    z.string().min(1, "Batch number is required"),
+  medicine_name:   z.string().trim().min(1, "Medicine name is required"),
+  batch_number:    z.string().trim().min(1, "Batch number is required"),
   mrp:             z.coerce.number().positive("MRP must be positive"),
   expiry_date:     z.string().min(1, "Expiry date is required"),
   quantity_bought: z.coerce.number().int().positive("Quantity must be a positive integer"),

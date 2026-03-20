@@ -2,6 +2,7 @@ import { getSales } from "@/lib/actions/sales"
 import { getStockBatchNumbers } from "@/lib/actions/stocks"
 import { RecordSaleDialog } from "@/components/sales/record-sale-dialog"
 import { SalesTable } from "@/components/sales/sales-table"
+import { SalesHistoryDialog } from "@/components/sales/sales-history-dialog"
 
 export default async function SalesPage() {
   const [sales, stocks] = await Promise.all([getSales(), getStockBatchNumbers()])
@@ -15,7 +16,10 @@ export default async function SalesPage() {
             Record medicines sold to customers
           </p>
         </div>
-        <RecordSaleDialog stocks={stocks} />
+        <div className="flex items-center gap-2">
+          <SalesHistoryDialog sales={sales ?? []} />
+          <RecordSaleDialog stocks={stocks} />
+        </div>
       </div>
 
       <SalesTable sales={sales ?? []} />

@@ -84,6 +84,7 @@ export function SalesTable({ sales }: SalesTableProps) {
         batch_number: s.batch_number,
         expiry_date: s.expiry_date,
         quantity: s.quantity_sold,
+        mrp: Number(s.mrp),
         rate: Number((Number(s.mrp) * (1 - discNum / 100)).toFixed(2)),
       })),
     })
