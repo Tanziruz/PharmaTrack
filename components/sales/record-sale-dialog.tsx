@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 import { recordSale } from "@/lib/actions/sales"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,8 @@ import { MedicineScanner } from "@/components/ui/medicine-scanner"
 import type { PackagingScanResult } from "@/lib/utils/ocr-extract"
 import { Separator } from "@/components/ui/separator"
 import { generateBillPDF } from "@/lib/utils/generate-bill-pdf"
+import type { BillData } from "@/lib/utils/generate-bill-pdf"
+import { BillNameDialog } from "@/components/sales/bill-name-dialog"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -335,6 +337,8 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
   const [entries, setEntries] = useState<SaleEntryData[]>([createSaleEntry()])
   const [saleDate, setSaleDate] = useState("")
   const [isPending, startTransition] = useTransition()
+  const [billNameOpen, setBillNameOpen] = useState(false)
+  const pendingBillData = useRef<Omit<BillData, "customerName"> | null>(null)
 
   const today = new Date().toISOString().split("T")[0]
 
@@ -494,6 +498,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
   }
 
   return (
+    <>
     <Dialog
       open={open}
       onOpenChange={(v) => {
@@ -572,7 +577,7 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
                 toast.error("Fill in at least one complete item to generate a bill.")
                 return
               }
-              generateBillPDF({
+              pendingBillData.current = {
                 date,
                 items: validEntries.map((e) => ({
                   medicine_name: e.medicine_name,
@@ -582,8 +587,8 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
                   mrp: parseFloat(e.mrp) || 0,
                   rate: parseFloat(e.selling_price) || parseFloat(applyDiscount(e.mrp, e.discount)) || 0,
                 })),
-              })
-              toast.success("Bill downloaded.")
+              }
+              setBillNameOpen(true)
             }}
           >
             <Download className="h-4 w-4 mr-1" />
@@ -597,6 +602,19 @@ export function RecordSaleDialog({ stocks }: RecordSaleDialogProps) {
         </div>
       </DialogContent>
     </Dialog>
+
+    <BillNameDialog
+      open={billNameOpen}
+      onOpenChange={setBillNameOpen}
+      onGenerate={(customerName) => {
+        if (pendingBillData.current) {
+          generateBillPDF({ ...pendingBillData.current, customerName })
+          toast.success("Bill downloaded.")
+          pendingBillData.current = null
+        }
+      }}
+    />
+    </>
   )
 }
 
