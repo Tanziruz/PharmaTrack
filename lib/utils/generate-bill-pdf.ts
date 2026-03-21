@@ -13,6 +13,7 @@ export interface BillItem {
 export interface BillData {
   items: BillItem[]
   date: string // ISO date string e.g. "2026-03-07"
+  customerName?: string
 }
 
 export function generateBillPDF(data: BillData) {
@@ -44,6 +45,18 @@ export function generateBillPDF(data: BillData) {
   doc.setDrawColor(200)
   doc.line(14, 37, pageWidth - 14, 37)
 
+  // ── Customer Name ─────────────────────────────────────────────────────────
+  let tableStartY = 42
+  if (data.customerName?.trim()) {
+    doc.setFontSize(10)
+    doc.setFont("helvetica", "bold")
+    doc.text("Bill To:", 14, 44)
+    doc.setFont("helvetica", "normal")
+    doc.text(data.customerName.trim(), 33, 44)
+    doc.line(14, 49, pageWidth - 14, 49)
+    tableStartY = 54
+  }
+
   // ── Table ──────────────────────────────────────────────────────────────────
   const formatExpiry = (dateStr: string) => {
     if (!dateStr) return ""
@@ -71,7 +84,7 @@ export function generateBillPDF(data: BillData) {
   )
 
   autoTable(doc, {
-    startY: 42,
+    startY: tableStartY,
     head: [["#", "Product Name", "Batch No.", "Expiry", "Qty", "MRP", "Rate", "Amount"]],
     body: tableBody,
     foot: [["", "", "", "", "", "", "Grand Total", `Rs. ${grandTotal.toFixed(2)}`]],

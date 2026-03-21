@@ -26,6 +26,7 @@ import { Trash2, Search, Download } from "lucide-react"
 import { format } from "date-fns"
 import { generateBillPDF } from "@/lib/utils/generate-bill-pdf"
 import { SalesHistoryDialog } from "@/components/sales/sales-history-dialog"
+import { BillNameDialog } from "@/components/sales/bill-name-dialog"
 
 interface SalesTableProps {
   sales: Sale[]
@@ -36,6 +37,7 @@ export function SalesTable({ sales }: SalesTableProps) {
   const [query, setQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [billDiscount, setBillDiscount] = useState("10")
+  const [billNameOpen, setBillNameOpen] = useState(false)
 
   const q = query.toLowerCase()
   const filtered = sales.filter(
@@ -77,9 +79,15 @@ export function SalesTable({ sales }: SalesTableProps) {
       toast.error("Select at least one sale to generate a bill.")
       return
     }
+    setBillNameOpen(true)
+  }
+
+  const handleBillGenerate = (customerName: string) => {
+    const selected = sales.filter((s) => selectedIds.has(s.id))
     const discNum = parseFloat(billDiscount)
     generateBillPDF({
       date: new Date().toISOString().split("T")[0],
+      customerName,
       items: selected.map((s) => ({
         medicine_name: s.medicine_name,
         batch_number: s.batch_number,
@@ -196,5 +204,11 @@ export function SalesTable({ sales }: SalesTableProps) {
         </TableBody>
       </Table>
     </div>
-    </div>  )
+    <BillNameDialog
+      open={billNameOpen}
+      onOpenChange={setBillNameOpen}
+      onGenerate={handleBillGenerate}
+    />
+  </div>
+  )
 }

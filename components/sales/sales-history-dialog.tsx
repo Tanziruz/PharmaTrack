@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { format } from "date-fns"
 import { History, Download } from "lucide-react"
 import type { Sale } from "@/lib/types/database"
@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { BillNameDialog } from "@/components/sales/bill-name-dialog"
 
 interface SalesHistoryDialogProps {
   sales: Sale[]
@@ -28,6 +29,8 @@ interface SaleGroup {
 
 export function SalesHistoryDialog({ sales }: SalesHistoryDialogProps) {
   const [open, setOpen] = useState(false)
+  const [billNameOpen, setBillNameOpen] = useState(false)
+  const pendingGroup = useRef<SaleGroup | null>(null)
 
   const groupedSales = useMemo<SaleGroup[]>(() => {
     const groups = new Map<string, SaleGroup>()
@@ -62,8 +65,16 @@ export function SalesHistoryDialog({ sales }: SalesHistoryDialogProps) {
   }, [sales])
 
   const downloadGroupBill = (group: SaleGroup) => {
+    pendingGroup.current = group
+    setBillNameOpen(true)
+  }
+
+  const handleBillGenerate = (customerName: string) => {
+    const group = pendingGroup.current
+    if (!group) return
     generateBillPDF({
       date: group.saleDate,
+      customerName,
       items: group.items.map((s) => ({
         medicine_name: s.medicine_name,
         batch_number: s.batch_number,
@@ -73,9 +84,11 @@ export function SalesHistoryDialog({ sales }: SalesHistoryDialogProps) {
         rate: Number(s.selling_price),
       })),
     })
+    pendingGroup.current = null
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
@@ -156,5 +169,15 @@ export function SalesHistoryDialog({ sales }: SalesHistoryDialogProps) {
         )}
       </DialogContent>
     </Dialog>
+
+    <BillNameDialog
+      open={billNameOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) pendingGroup.current = null
+        setBillNameOpen(nextOpen)
+      }}
+      onGenerate={handleBillGenerate}
+    />
+    </>
   )
 }
